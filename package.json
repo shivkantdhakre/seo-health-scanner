@@ -10,11 +10,8 @@
   },
   "dependencies": {
     "axios": "^1.11.0",
-    "chrome-launcher": "^1.2.0",
-    "cohere-ai": "^7.18.0",
-    "lighthouse": "^12.8.1",
+    "lucide-react": "^0.378.0",
     "next": "15.4.6",
-    "puppeteer": "^24.16.0",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
