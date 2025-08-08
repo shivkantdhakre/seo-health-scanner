@@ -1,3 +1,4 @@
+'use client'
 import { useState } from 'react'
 import { SEOResult } from '@/types'
 import { Search, Globe, Zap, Target, TrendingUp } from 'lucide-react'
