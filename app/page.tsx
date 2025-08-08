@@ -1,11 +1,31 @@
 'use client'
 import { useState } from 'react'
 import { SEOResult } from '@/types'
-import { Search, Globe, Zap, Target, TrendingUp } from 'lucide-react'
+import { Search, Globe, Zap, Target, TrendingUp, Bot } from 'lucide-react'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { ErrorAlert } from '@/components/ui/ErrorAlert'
 import { InfoCard } from '@/components/seo/InfoCard'
 import { PerformanceScore } from '@/components/seo/PerformanceScore'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { CopyToClipboardButton } from '@/components/ui/CopyToClipboardButton'
+
+const features = [
+  {
+    name: 'SEO Analysis',
+    description: 'Complete SEO audit',
+    icon: <Globe className="w-8 h-8 text-blue-500" />,
+  },
+  {
+    name: 'Performance',
+    description: 'Speed & optimization',
+    icon: <Zap className="w-8 h-8 text-yellow-500" />,
+  },
+  {
+    name: 'AI Insights',
+    description: 'Smart recommendations',
+    icon: <TrendingUp className="w-8 h-8 text-green-500" />,
+  },
+]
 
 export default function Home() {
   const [url, setUrl] = useState('')
@@ -76,7 +96,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-blue-900">
-      {/* Header */}
       <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center space-x-3">
@@ -91,7 +110,6 @@ export default function Home() {
       </header>
 
       <main className="container mx-auto px-4 py-8 md:py-16">
-        {/* Hero Section */}
         <div className="max-w-4xl mx-auto text-center mb-12">
           <div className="inline-flex items-center justify-center bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 p-4 rounded-2xl mb-6 animate-fade-in">
             <Target size={48} />
@@ -109,32 +127,18 @@ export default function Home() {
             Get comprehensive SEO insights, performance metrics, and AI-powered recommendations to boost your website's search rankings.
           </p>
 
-          {/* Features */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 animate-fade-in">
-            <div className="flex items-center space-x-3 p-4 bg-white/50 dark:bg-gray-800/50 rounded-xl">
-              <Globe className="w-8 h-8 text-blue-500" />
-              <div className="text-left">
-                <h3 className="font-semibold text-gray-900 dark:text-white">SEO Analysis</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Complete SEO audit</p>
+            {features.map((feature) => (
+              <div key={feature.name} className="flex items-center space-x-3 p-4 bg-white/50 dark:bg-gray-800/50 rounded-xl">
+                {feature.icon}
+                <div className="text-left">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">{feature.name}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{feature.description}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center space-x-3 p-4 bg-white/50 dark:bg-gray-800/50 rounded-xl">
-              <Zap className="w-8 h-8 text-yellow-500" />
-              <div className="text-left">
-                <h3 className="font-semibold text-gray-900 dark:text-white">Performance</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Speed & optimization</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3 p-4 bg-white/50 dark:bg-gray-800/50 rounded-xl">
-              <TrendingUp className="w-8 h-8 text-green-500" />
-              <div className="text-left">
-                <h3 className="font-semibold text-gray-900 dark:text-white">AI Insights</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Smart recommendations</p>
-              </div>
-            </div>
+            ))}
           </div>
 
-          {/* Scan Form */}
           <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-4 max-w-2xl mx-auto animate-fade-in">
             <input
               value={url}
@@ -155,7 +159,6 @@ export default function Home() {
           </form>
         </div>
 
-        {/* Loading State */}
         {loading && (
           <div className="max-w-4xl mx-auto">
             <LoadingSpinner 
@@ -166,7 +169,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Error State */}
         {error && (
           <div className="max-w-4xl mx-auto animate-fade-in">
             <ErrorAlert 
@@ -176,7 +178,12 @@ export default function Home() {
           </div>
         )}
 
-        {/* Results */}
+        {!loading && !error && !data && (
+          <div className="max-w-4xl mx-auto animate-fade-in">
+            <EmptyState />
+          </div>
+        )}
+
         {data && (
           <div className="max-w-6xl mx-auto mt-16 animate-fade-in">
             <div className="mb-8">
@@ -184,11 +191,10 @@ export default function Home() {
                 Analysis Results
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Showing SEO analysis for: <span className="font-medium text-blue-600 dark:text-blue-400">{url}</span>
+                Showing SEO analysis for: <a href={url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 dark:text-blue-400 break-all">{url}</a>
               </p>
             </div>
 
-            {/* SEO Metrics Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               <InfoCard 
                 title="Title Tag" 
@@ -212,17 +218,16 @@ export default function Home() {
               />
             </div>
 
-            {/* Performance Scores */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               <PerformanceScore score={data.performance} label="Performance Score" />
               <PerformanceScore score={data.seo_score} label="SEO Score" />
             </div>
             
-            {/* AI Suggestions */}
-            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg">
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg relative">
+              <CopyToClipboardButton textToCopy={data.ai_suggestions} />
               <div className="flex items-center space-x-3 mb-6">
                 <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-3 rounded-xl">
-                  <TrendingUp className="w-6 h-6 text-white" />
+                  <Bot className="w-6 h-6 text-white" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
                   AI-Powered Recommendations
@@ -238,11 +243,10 @@ export default function Home() {
         )}
       </main>
 
-      {/* Footer */}
       <footer className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 mt-16">
         <div className="container mx-auto px-4 py-8 text-center">
           <p className="text-gray-600 dark:text-gray-400">
-            Built with Next.js, powered by Google PageSpeed Insights and AI
+            Built with Next.js, powered by Google PageSpeed Insights and Gemini
           </p>
         </div>
       </footer>

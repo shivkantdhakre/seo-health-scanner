@@ -1,8 +1,10 @@
 import { SEOResult } from '@/types'
 
+// Defines the expected structure of the PageSpeed Insights API response.
+// The `performance` and `seo` categories are marked as optional to handle cases where they might be missing.
 interface PageSpeedResult {
-  lighthouseResult: {
-    audits: {
+  lighthouseResult?: {
+    audits?: {
       'document-title'?: {
         details?: {
           items?: Array<{ title: string }>
@@ -19,50 +21,75 @@ interface PageSpeedResult {
         }
       }
     }
-    categories: {
-      performance: {
+    categories?: {
+      performance?: {
         score: number
       }
-      seo: {
+      seo?: {
         score: number
       }
     }
   }
 }
 
+// Generates AI-powered SEO suggestions using the Gemini API.
 async function getAISuggestions(
-  url: string, 
-  title: string, 
-  meta: string, 
-  h1: string, 
+  url: string,
+  title: string,
+  meta: string,
+  h1: string,
   performance: number,
   seoScore: number
 ): Promise<string> {
   const prompt = `
-As an SEO expert, analyze this website and provide specific, actionable improvement recommendations:
+As an expert SEO consultant, please provide a comprehensive yet easy-to-understand SEO audit and action plan for the following website.
 
-**Website:** ${url}
-**Title Tag:** ${title || 'Missing'}
-**Meta Description:** ${meta || 'Missing'}  
-**H1 Heading:** ${h1 || 'Missing'}
-**Performance Score:** ${performance}/100
-**SEO Score:** ${seoScore}/100
+**URL:** ${url}
 
-Please provide:
-1. **Critical Issues** - Most important problems to fix first
-2. **Title Tag Optimization** - Specific improvements for the title
-3. **Meta Description Enhancement** - How to improve the meta description
-4. **Content Structure** - H1 and heading recommendations
-5. **Performance Improvements** - Key areas to boost loading speed
-6. **Quick Wins** - Easy changes with high impact
+**Current SEO Data:**
+- **Title Tag:** ${title || 'Not Found'}
+- **Meta Description:** ${meta || 'Not Found'}
+- **H1 Heading:** ${h1 || 'Not Found'}
+- **Performance Score:** ${performance}/100
+- **SEO Score:** ${seoScore}/100
 
-Format your response with clear headings and bullet points. Be specific and actionable.
+**Your Task:**
+Generate a report with clear, actionable recommendations. Use markdown for formatting. The report should include the following sections:
+
+### 🚀 **Overall SEO Health**
+Provide a brief, overall summary of the website's SEO health based on the data.
+
+### 🎯 **Priority Action Items**
+List the top 3-5 most critical issues that need to be addressed first for the biggest impact.
+
+### **Detailed Recommendations**
+
+#### **✍️ Title Tag**
+- **Analysis:** Briefly analyze the current title tag.
+- **Suggestion:** Provide a revised, optimized title tag. Explain why the new title is better (e.g., keyword placement, length, clarity).
+
+#### **📄 Meta Description**
+- **Analysis:** Analyze the current meta description.
+- **Suggestion:** Write a compelling, revised meta description. Explain the improvements.
+
+#### **#️⃣ Heading Structure (H1)**
+- **Analysis:** Analyze the current H1 heading.
+- **Suggestion:** Suggest an improved H1 and explain how it better reflects the page content.
+
+#### **⚡ Performance**
+- **Analysis:** Comment on the performance score.
+- **Suggestions:** Provide 2-3 specific, high-impact suggestions to improve the performance score (e.g., "Compress images," "Reduce unused JavaScript").
+
+### **🏆 Quick Wins**
+List a few simple, easy-to-implement changes that can provide a quick boost to SEO.
+
+Please be specific and provide clear, actionable advice.
 `
 
   try {
     const geminiApiKey = process.env.GEMINI_API_KEY
     if (!geminiApiKey) {
-      return "AI suggestions unavailable: API key not configured. Please set GEMINI_API_KEY environment variable."
+      return "AI suggestions unavailable: API key not configured. Please set the GEMINI_API_KEY environment variable."
     }
 
     const response = await fetch(
@@ -76,7 +103,7 @@ Format your response with clear headings and bullet points. Be specific and acti
             temperature: 0.7,
             topK: 40,
             topP: 0.95,
-            maxOutputTokens: 1024,
+            maxOutputTokens: 2048,
           }
         })
       }
@@ -85,7 +112,7 @@ Format your response with clear headings and bullet points. Be specific and acti
     if (!response.ok) {
       const errorText = await response.text()
       console.error("Gemini API error:", response.status, errorText)
-      return "AI suggestions temporarily unavailable. Please try again later."
+      return "AI suggestions are temporarily unavailable. Please try again later."
     }
 
     const result = await response.json()
@@ -98,46 +125,40 @@ Format your response with clear headings and bullet points. Be specific and acti
     }
   } catch (error) {
     console.error("Error calling Gemini API:", error)
-    return "AI suggestions unavailable due to a technical error."
+    return "AI suggestions are unavailable due to a technical error."
   }
 }
 
-function extractSEOData(lighthouseResult: PageSpeedResult['lighthouseResult']) {
-  // Extract title
-  const titleAudit = lighthouseResult.audits['document-title']
-  const title = titleAudit?.details?.items?.[0]?.title || 'No title found'
+// Extracts key SEO data from the Lighthouse report.
+function extractSEOData(lighthouseResult: NonNullable<PageSpeedResult['lighthouseResult']>) {
+  const title = lighthouseResult.audits?.['document-title']?.details?.items?.[0]?.title || 'No title found'
+  const meta = lighthouseResult.audits?.['meta-description']?.details?.items?.[0]?.description || 'No meta description found'
 
-  // Extract meta description  
-  const metaAudit = lighthouseResult.audits['meta-description']
-  const meta = metaAudit?.details?.items?.[0]?.description || 'No meta description found'
-
-  // Extract H1 - try multiple audit types
   let h1 = 'No H1 heading found'
-  const headingAudit = lighthouseResult.audits['heading-order']
+  const headingAudit = lighthouseResult.audits?.['heading-order']
   if (headingAudit?.details?.items?.[0]?.node?.snippet) {
     const snippet = headingAudit.details.items[0].node.snippet
-    // Extract text content from HTML snippet
     const textMatch = snippet.match(/>([^<]+)</)?.[1]
     if (textMatch) {
       h1 = textMatch.trim()
     }
   }
 
-  // Extract performance score
-  const performanceScore = lighthouseResult.categories.performance.score
+  // **FIX:** Safely access performance and SEO scores using optional chaining (`?.`).
+  // This prevents crashes if the `categories` or specific scores are missing from the API response.
+  const performanceScore = lighthouseResult.categories?.performance?.score
     ? Math.round(lighthouseResult.categories.performance.score * 100)
     : 0
 
-  // Extract SEO score
-  const seoScore = lighthouseResult.categories.seo.score
+  const seoScore = lighthouseResult.categories?.seo?.score
     ? Math.round(lighthouseResult.categories.seo.score * 100)
     : 0
 
   return { title, meta, h1, performanceScore, seoScore }
 }
 
+// Main function to run the full SEO scan.
 export async function runFullSEOScan(url: string): Promise<SEOResult> {
-  // Validate URL
   try {
     new URL(url)
   } catch {
@@ -146,7 +167,7 @@ export async function runFullSEOScan(url: string): Promise<SEOResult> {
 
   const pagespeedApiKey = process.env.PAGESPEED_API_KEY
   if (!pagespeedApiKey) {
-    throw new Error("PageSpeed API key not configured. Please set PAGESPEED_API_KEY environment variable.")
+    throw new Error("The PageSpeed API key is not configured. Please set the PAGESPEED_API_KEY environment variable.")
   }
 
   const apiUrl = new URL('https://www.googleapis.com/pagespeedonline/v5/runPagespeed')
@@ -168,20 +189,25 @@ export async function runFullSEOScan(url: string): Promise<SEOResult> {
       const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`
       
       if (response.status === 400) {
-        throw new Error("Invalid URL or the website cannot be analyzed. Please check the URL and try again.")
+        throw new Error("The URL is invalid or the website cannot be analyzed. Please check the URL and try again.")
       } else if (response.status === 403) {
-        throw new Error("API quota exceeded or invalid API key. Please try again later.")
+        throw new Error("The API quota has been exceeded or the API key is invalid. Please try again later.")
       } else if (response.status === 429) {
-        throw new Error("Too many requests. Please wait a moment and try again.")
+        throw new Error("Too many requests have been sent. Please wait a moment and try again.")
       } else {
-        throw new Error(`Failed to analyze website: ${errorMessage}`)
+        throw new Error(`Failed to analyze the website: ${errorMessage}`)
       }
     }
     
     const result: PageSpeedResult = await response.json()
+
+    // **FIX:** Add a robust check to ensure lighthouseResult exists before proceeding.
+    if (!result.lighthouseResult) {
+      throw new Error("Analysis failed: Lighthouse did not return any results for this URL. It might be offline or blocking automated tools.")
+    }
+
     const { title, meta, h1, performanceScore, seoScore } = extractSEOData(result.lighthouseResult)
 
-    // Get AI suggestions
     const aiSuggestions = await getAISuggestions(url, title, meta, h1, performanceScore, seoScore)
 
     return {
@@ -196,7 +222,7 @@ export async function runFullSEOScan(url: string): Promise<SEOResult> {
     console.error(`Error during PageSpeed scan for ${url}:`, error)
     
     if (error.message.includes('fetch')) {
-      throw new Error("Network error: Unable to connect to the analysis service. Please check your internet connection and try again.")
+      throw new Error("A network error occurred. Unable to connect to the analysis service. Please check your internet connection and try again.")
     }
     
     throw error
