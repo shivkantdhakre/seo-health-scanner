@@ -1,70 +1,32 @@
-'use client'; // This component needs to be a client component to use hooks.
+import type { Metadata } from 'next'
+import './globals.css'
 
-import { useEffect } from "react";
-
-// Metadata cannot be exported from a client component, so it's removed.
-// We will set the title dynamically in the useEffect hook.
+export const metadata: Metadata = {
+  title: 'SEO Health Scanner',
+  description: 'Comprehensive SEO analysis tool with AI-powered recommendations',
+  keywords: 'SEO, website analysis, performance, optimization',
+  authors: [{ name: 'SEO Health Scanner' }],
+  viewport: 'width=device-width, initial-scale=1',
+}
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  
-  useEffect(() => {
-    // This effect runs on the client side to safely manipulate the <head>.
-    
-    // Set the document title
-    document.title = "SEO Health Scanner";
-
-    // --- Font & CSS Loading ---
-    // We create and append link/script tags here to avoid rendering them directly in the component,
-    // which was causing the nesting errors. We also check if they exist to prevent duplicates.
-
-    if (!document.querySelector('script[src="https://cdn.tailwindcss.com"]')) {
-      const tailwindScript = document.createElement('script');
-      tailwindScript.src = "https://cdn.tailwindcss.com";
-      document.head.appendChild(tailwindScript);
-    }
-
-    if (!document.querySelector('link[href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"]')) {
-      const preconnect1 = document.createElement('link');
-      preconnect1.rel = 'preconnect';
-      preconnect1.href = 'https://fonts.googleapis.com';
-
-      const preconnect2 = document.createElement('link');
-      preconnect2.rel = 'preconnect';
-      preconnect2.href = 'https://fonts.gstatic.com';
-      preconnect2.crossOrigin = 'anonymous';
-
-      const fontLink = document.createElement('link');
-      fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap';
-      fontLink.rel = 'stylesheet';
-
-      document.head.appendChild(preconnect1);
-      document.head.appendChild(preconnect2);
-      document.head.appendChild(fontLink);
-    }
-
-    // --- Style Injection ---
-    const styleElement = document.createElement('style');
-    styleElement.id = 'custom-body-font-style'; // Give it a unique ID
-    if (!document.getElementById(styleElement.id)) {
-      styleElement.innerHTML = `
-        body {
-          font-family: 'Inter', sans-serif;
-        }
-      `;
-      document.head.appendChild(styleElement);
-    }
-
-  }, []); // Empty dependency array ensures this effect runs only once on mount.
-
+}: {
+  children: React.ReactNode
+}) {
   return (
-    // We return only the children, wrapped in a fragment. The rendering environment
-    // provides the necessary <html> and <body> tags.
-    <>
-      {children}
-    </>
-  );
+    <html lang="en" className="scroll-smooth">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="font-inter antialiased">
+        {children}
+      </body>
+    </html>
+  )
 }

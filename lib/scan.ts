@@ -1,100 +1,204 @@
-// Note: puppeteer, lighthouse, and chrome-launcher have been removed
-// to fix build errors and improve reliability. We now use the
-// Google PageSpeed Insights API, which runs Lighthouse remotely.
+import { SEOResult } from '@/types'
 
-async function getAISuggestions(url: string, title: string, meta: string, h1: string, performance: number) {
-  const prompt = `
-Analyze the following SEO data for the webpage at ${url} and provide actionable improvement tips.
-Focus on how to improve the title, meta description, H1 tag, and overall performance score.
-Present the tips as a concise, easy-to-read list or bullet points.
-
-- **URL:** ${url}
-- **Title Tag:** ${title || 'Not Found'}
-- **Meta Description:** ${meta || 'Not Found'}
-- **H1 Heading:** ${h1 || 'Not Found'}
-- **Lighthouse Performance Score:** ${performance}/100
-
-**SEO Improvement Suggestions:**
-`;
-
-  try {
-    const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
-    const payload = { contents: chatHistory };
-    
-    // This is the fix: Explicitly read the Gemini API key from environment variables.
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) {
-      throw new Error("GEMINI_API_KEY environment variable is not set.");
+interface PageSpeedResult {
+  lighthouseResult: {
+    audits: {
+      'document-title'?: {
+        details?: {
+          items?: Array<{ title: string }>
+        }
+      }
+      'meta-description'?: {
+        details?: {
+          items?: Array<{ description: string }>
+        }
+      }
+      'heading-order'?: {
+        details?: {
+          items?: Array<{ node?: { snippet: string } }>
+        }
+      }
     }
-
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
-
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error("Gemini API request failed:", response.status, errorBody);
-      throw new Error(`Gemini API request failed with status ${response.status}`);
+    categories: {
+      performance: {
+        score: number
+      }
+      seo: {
+        score: number
+      }
     }
-
-    const result = await response.json();
-    
-    if (result.candidates && result.candidates[0]?.content?.parts?.[0]) {
-      return result.candidates[0].content.parts[0].text.trim();
-    } else {
-      console.warn("Unexpected Gemini API response structure:", result);
-      return "Could not generate AI suggestions at this time.";
-    }
-  } catch (error) {
-    console.error("Error calling Gemini API:", error);
-    return "Failed to get AI suggestions due to an internal error.";
   }
 }
 
-export async function runFullSEOScan(url: string) {
-  // We use the Google PageSpeed Insights API to run Lighthouse.
-  // You need to get an API key from the Google Cloud Console.
-  const pagespeedApiKey = process.env.PAGESPEED_API_KEY;
-  if (!pagespeedApiKey) {
-    throw new Error("PAGESPEED_API_KEY environment variable is not set.");
-  }
+async function getAISuggestions(
+  url: string, 
+  title: string, 
+  meta: string, 
+  h1: string, 
+  performance: number,
+  seoScore: number
+): Promise<string> {
+  const prompt = `
+As an SEO expert, analyze this website and provide specific, actionable improvement recommendations:
 
-  const pagespeedApiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&key=${pagespeedApiKey}&category=PERFORMANCE&category=SEO`;
+**Website:** ${url}
+**Title Tag:** ${title || 'Missing'}
+**Meta Description:** ${meta || 'Missing'}  
+**H1 Heading:** ${h1 || 'Missing'}
+**Performance Score:** ${performance}/100
+**SEO Score:** ${seoScore}/100
+
+Please provide:
+1. **Critical Issues** - Most important problems to fix first
+2. **Title Tag Optimization** - Specific improvements for the title
+3. **Meta Description Enhancement** - How to improve the meta description
+4. **Content Structure** - H1 and heading recommendations
+5. **Performance Improvements** - Key areas to boost loading speed
+6. **Quick Wins** - Easy changes with high impact
+
+Format your response with clear headings and bullet points. Be specific and actionable.
+`
 
   try {
-    const response = await fetch(pagespeedApiUrl);
+    const geminiApiKey = process.env.GEMINI_API_KEY
+    if (!geminiApiKey) {
+      return "AI suggestions unavailable: API key not configured. Please set GEMINI_API_KEY environment variable."
+    }
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1024,
+          }
+        })
+      }
+    )
+
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error("PageSpeed API Error:", errorData);
-      throw new Error(errorData.error.message || 'Failed to fetch data from PageSpeed Insights API.');
+      const errorText = await response.text()
+      console.error("Gemini API error:", response.status, errorText)
+      return "AI suggestions temporarily unavailable. Please try again later."
+    }
+
+    const result = await response.json()
+    
+    if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+      return result.candidates[0].content.parts[0].text.trim()
+    } else {
+      console.warn("Unexpected Gemini API response:", result)
+      return "AI suggestions could not be generated at this time."
+    }
+  } catch (error) {
+    console.error("Error calling Gemini API:", error)
+    return "AI suggestions unavailable due to a technical error."
+  }
+}
+
+function extractSEOData(lighthouseResult: PageSpeedResult['lighthouseResult']) {
+  // Extract title
+  const titleAudit = lighthouseResult.audits['document-title']
+  const title = titleAudit?.details?.items?.[0]?.title || 'No title found'
+
+  // Extract meta description  
+  const metaAudit = lighthouseResult.audits['meta-description']
+  const meta = metaAudit?.details?.items?.[0]?.description || 'No meta description found'
+
+  // Extract H1 - try multiple audit types
+  let h1 = 'No H1 heading found'
+  const headingAudit = lighthouseResult.audits['heading-order']
+  if (headingAudit?.details?.items?.[0]?.node?.snippet) {
+    const snippet = headingAudit.details.items[0].node.snippet
+    // Extract text content from HTML snippet
+    const textMatch = snippet.match(/>([^<]+)</)?.[1]
+    if (textMatch) {
+      h1 = textMatch.trim()
+    }
+  }
+
+  // Extract performance score
+  const performanceScore = lighthouseResult.categories.performance.score
+    ? Math.round(lighthouseResult.categories.performance.score * 100)
+    : 0
+
+  // Extract SEO score
+  const seoScore = lighthouseResult.categories.seo.score
+    ? Math.round(lighthouseResult.categories.seo.score * 100)
+    : 0
+
+  return { title, meta, h1, performanceScore, seoScore }
+}
+
+export async function runFullSEOScan(url: string): Promise<SEOResult> {
+  // Validate URL
+  try {
+    new URL(url)
+  } catch {
+    throw new Error("Please enter a valid URL (including http:// or https://)")
+  }
+
+  const pagespeedApiKey = process.env.PAGESPEED_API_KEY
+  if (!pagespeedApiKey) {
+    throw new Error("PageSpeed API key not configured. Please set PAGESPEED_API_KEY environment variable.")
+  }
+
+  const apiUrl = new URL('https://www.googleapis.com/pagespeedonline/v5/runPagespeed')
+  apiUrl.searchParams.set('url', url)
+  apiUrl.searchParams.set('key', pagespeedApiKey)
+  apiUrl.searchParams.set('category', 'PERFORMANCE')
+  apiUrl.searchParams.set('category', 'SEO')
+  apiUrl.searchParams.set('strategy', 'DESKTOP')
+
+  try {
+    const response = await fetch(apiUrl.toString(), {
+      headers: {
+        'User-Agent': 'SEO-Health-Scanner/1.0'
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`
+      
+      if (response.status === 400) {
+        throw new Error("Invalid URL or the website cannot be analyzed. Please check the URL and try again.")
+      } else if (response.status === 403) {
+        throw new Error("API quota exceeded or invalid API key. Please try again later.")
+      } else if (response.status === 429) {
+        throw new Error("Too many requests. Please wait a moment and try again.")
+      } else {
+        throw new Error(`Failed to analyze website: ${errorMessage}`)
+      }
     }
     
-    const result = await response.json();
-    const lighthouseResult = result.lighthouseResult;
+    const result: PageSpeedResult = await response.json()
+    const { title, meta, h1, performanceScore, seoScore } = extractSEOData(result.lighthouseResult)
 
-    // Extracting the required SEO data from the Lighthouse report
-    const title = lighthouseResult.audits['document-title']?.details?.items?.[0]?.title || 'N/A';
-    const meta = lighthouseResult.audits['meta-description']?.details?.items?.[0]?.description || 'N/A';
-    const h1 = lighthouseResult.audits['h1-element']?.details?.items?.[0]?.node?.snippet || 'N/A';
-    const performanceScore = lighthouseResult.categories.performance.score
-      ? Math.round(lighthouseResult.categories.performance.score * 100)
-      : 0;
-
-    const aiSuggestions = await getAISuggestions(url, title, meta, h1, performanceScore);
+    // Get AI suggestions
+    const aiSuggestions = await getAISuggestions(url, title, meta, h1, performanceScore, seoScore)
 
     return {
       title,
       meta,
       h1,
       performance: performanceScore,
+      seo_score: seoScore,
       ai_suggestions: aiSuggestions,
-    };
-  } catch (e: any) {
-    console.error(`Error during PageSpeed scan for ${url}:`, e);
-    throw new Error(`Failed to scan the website via PageSpeed Insights. Details: ${e.message}`);
+    }
+  } catch (error: any) {
+    console.error(`Error during PageSpeed scan for ${url}:`, error)
+    
+    if (error.message.includes('fetch')) {
+      throw new Error("Network error: Unable to connect to the analysis service. Please check your internet connection and try again.")
+    }
+    
+    throw error
   }
 }
